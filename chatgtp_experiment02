@@ -1,0 +1,77 @@
+#include <iostream>
+#include <cstring>
+#include <vector>
+#include <cmath>
+#include <random>
+#include <algorithm>
+
+#include <Eigen/Dense>
+
+#define Tx 30
+#define Ty 10
+#define n_a 32
+#define n_s 64
+#define human_vocab_size len(human_vocab)
+#define machine_vocab_size len(machine_vocab)
+
+using namespace Eigen;
+using namespace std;
+
+MatrixXf RepeatVector(MatrixXf a, int Tx)
+{
+    return a.replicate(1, Tx);
+}
+
+MatrixXf Concatenate(MatrixXf a, MatrixXf s_prev, int axis)
+{
+    return a.rowwise().concatenate(s_prev.rowwise());
+}
+
+MatrixXf Activation(MatrixXf energies)
+{
+    MatrixXf softmax = energies.array().exp();
+    softmax = softmax.array() / softmax.sum(axis = 0).array();
+    return softmax;
+}
+
+MatrixXf Dot(MatrixXf a, MatrixXf alphas)
+{
+    return (a * alphas.transpose()).rowwise().sum();
+}
+
+MatrixXf Dense(MatrixXf X, int n, string activation)
+{
+    MatrixXf W = MatrixXf::Random(X.rows(), n);
+    MatrixXf b = MatrixXf::Zero(1, n);
+    MatrixXf z = X * W + b.replicate(X.rows(), 1);
+    if (activation == "tanh")
+    {
+        return tanh(z);
+    }
+    else if (activation == "relu")
+    {
+        return z.unaryExpr([](float x){return max(x, 0.0f);});
+    }
+    return z;
+}
+
+MatrixXf one_step_attention(MatrixXf a, MatrixXf s_prev)
+{
+    MatrixXf s_prev = RepeatVector(s_prev, Tx);
+    MatrixXf concat = Concatenate(a, s_prev, -1);
+    MatrixXf e = Dense(concat, 10, "tanh");
+    MatrixXf energies = Dense(e, 1, "relu");
+    MatrixXf alphas = Activation(energies);
+    MatrixXf context = Dot(a, alphas);
+    return context;
+}
+
+MatrixXf post_activation_LSTM_cell(MatrixXf context, MatrixXf s, MatrixXf c)
+{
+    MatrixXf Wf = MatrixXf::Random(context.rows(), n_s);
+    MatrixXf bf = MatrixXf::Zero(1, n_s);
+    MatrixXf Wu = MatrixXf::Random(context.rows(), n_s);
+    MatrixXf bu = MatrixXf::Zero(1, n_s);
+    MatrixXf Wc = MatrixXf::Random(context.rows(), n_s);
+    MatrixXf bc = MatrixXf::Zero(1, n_s);
+    MatrixXf Wo = MatrixXf::Random(
